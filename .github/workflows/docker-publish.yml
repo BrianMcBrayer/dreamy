@@ -4,8 +4,13 @@ on:
   push:
     branches:
       - master
+    tags:
+      - "v*"
   pull_request:
   workflow_dispatch:
+  release:
+    types:
+      - published
 
 jobs:
   build:
@@ -22,6 +27,10 @@ jobs:
         uses: astral-sh/setup-uv@v6
         with:
           python-version: "3.11"
+          enable-cache: "true"
+          cache-dependency-glob: |
+            pyproject.toml
+            uv.lock
 
       - name: Install dependencies
         run: uv sync --extra dev --frozen
@@ -34,6 +43,51 @@ jobs:
 
       - name: Run pytest
         run: uv run pytest
+
+      - name: Determine image version
+        id: image_version
+        run: |
+          uv run python - <<'PY'
+          import os
+          import re
+          import tomllib
+          from pathlib import Path
+
+          event_name = os.environ.get("GITHUB_EVENT_NAME", "")
+          ref_type = os.environ.get("GITHUB_REF_TYPE", "")
+          ref_name = os.environ.get("GITHUB_REF_NAME", "")
+
+          if event_name == "release":
+              version = ref_name
+              source = "release"
+          elif ref_type == "tag" and ref_name:
+              version = ref_name
+              source = "tag"
+          else:
+              version = tomllib.loads(Path("pyproject.toml").read_text("utf-8"))["project"]["version"]
+              source = "pyproject"
+
+          core = version.lstrip("v")
+          match = re.match(r"^(?P<major>0|[1-9]\d*)(?:\.(?P<minor>0|[1-9]\d*))?(?:\.(?P<patch>0|[1-9]\d*))?(?:[-+].*)?$", core)
+
+          if match:
+              major = match.group("major") or ""
+              minor = match.group("minor") or "0"
+              patch = match.group("patch") or "0"
+              is_semver = "true"
+          else:
+              major = minor = patch = ""
+              is_semver = "false"
+
+          output_path = Path(os.environ["GITHUB_OUTPUT"])
+          with output_path.open("a", encoding="utf-8") as fh:
+              fh.write(f"version={version}\n")
+              fh.write(f"source={source}\n")
+              fh.write(f"is_semver={is_semver}\n")
+              fh.write(f"major={major}\n")
+              fh.write(f"minor={minor}\n")
+              fh.write(f"patch={patch}\n")
+          PY
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -53,6 +107,10 @@ jobs:
           tags: |
             type=sha
             type=ref,event=branch
+            type=raw,value=${{ steps.image_version.outputs.version }},enable=${{ steps.image_version.outputs.source != 'pyproject' && steps.image_version.outputs.version != '' }}
+            type=raw,value=latest,enable=${{ steps.image_version.outputs.source == 'release' }}
+            type=raw,value=${{ steps.image_version.outputs.major }}.${{ steps.image_version.outputs.minor }},enable=${{ steps.image_version.outputs.is_semver == 'true' && steps.image_version.outputs.source == 'release' }}
+            type=raw,value=${{ steps.image_version.outputs.major }},enable=${{ steps.image_version.outputs.is_semver == 'true' && steps.image_version.outputs.source == 'release' && steps.image_version.outputs.major != '0' }}
 
       - name: Build and (conditionally) push image
         uses: docker/build-push-action@v5
@@ -61,3 +119,5 @@ jobs:
           push: ${{ github.event_name != 'pull_request' }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
