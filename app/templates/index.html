@@ -19,7 +19,7 @@
             justify-content: center;
         }
         main {
-            width: min(420px, 90vw);
+            width: min(420px, 92vw);
             background: rgba(255, 255, 255, 0.05);
             padding: 2.5rem 2rem;
             border-radius: 18px;
@@ -67,6 +67,37 @@
             font-size: 0.85rem;
             color: rgba(255, 255, 255, 0.7);
             text-align: center;
+        }
+        @media (max-width: 640px) {
+            body {
+                align-items: flex-start;
+                justify-content: flex-start;
+                padding: 1.75rem 1rem;
+            }
+            main {
+                width: 100%;
+                padding: 2rem 1.25rem;
+                border-radius: 16px;
+                box-shadow: 0 12px 32px rgba(0, 0, 0, 0.3);
+            }
+            h1 {
+                font-size: 2rem;
+                text-align: left;
+                margin-bottom: 1.25rem;
+            }
+            form {
+                gap: 1.1rem;
+            }
+            label {
+                font-size: 1rem;
+            }
+            input, select, button {
+                font-size: 1.05rem;
+            }
+            .hint {
+                font-size: 0.95rem;
+                text-align: left;
+            }
         }
     </style>
 </head>
