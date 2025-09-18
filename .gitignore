@@ -2,5 +2,12 @@
 __pycache__/
 dreamy_downloader.egg-info/
 
+# tooling caches
+.mypy_cache/
+.pytest_cache/
+.ruff_cache/
+.uv-cache/
+.uv_cache/
+
 # uv artifacts
 .uv-lock/
